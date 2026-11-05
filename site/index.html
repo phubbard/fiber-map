@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fiber map</title>
+<meta name="description" content="Fiber buildout permits, coverage links and news around one ZIP code.">
+<link rel="stylesheet" href="vendor/leaflet/leaflet.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand">
+    <h1 id="title">Fiber map</h1>
+    <p class="sub" id="subtitle">Loading…</p>
+  </div>
+  <nav class="links" id="links" aria-label="Check availability"></nav>
+</header>
+
+<section class="kpis" id="kpis" aria-label="Headline numbers"></section>
+
+<main class="grid">
+  <section class="panel map-panel" aria-label="Map of telecom permits">
+    <div id="map"></div>
+    <div class="map-controls">
+      <div id="legend" class="legend" aria-label="Companies"></div>
+      <div class="toggles">
+        <label><input type="checkbox" id="toggle-traffic"> Traffic-control permits</label>
+        <label><input type="checkbox" id="toggle-done"> Closed and cancelled</label>
+      </div>
+      <p class="key">Filled = active · dashed = planned · faded = closed · large = fiber job</p>
+    </div>
+  </section>
+  <aside class="panel news-panel" aria-label="News">
+    <h2>News</h2>
+    <ol id="news" class="news"></ol>
+  </aside>
+</main>
+
+<section class="panel permits-panel" aria-label="Permits in area">
+  <h2 id="permits-heading">Permits in area</h2>
+  <div class="table-wrap">
+    <table id="permits">
+      <thead><tr><th>Created</th><th>Company</th><th>Kind</th><th>Status</th><th>Address</th><th>Scope</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+</section>
+
+<footer id="footer" class="footer"></footer>
+
+<script src="vendor/leaflet/leaflet.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

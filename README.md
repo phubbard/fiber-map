@@ -1,0 +1,102 @@
+# fiber-map
+
+A one-page, self-hosted watch on fiber internet buildout around a ZIP code: a map of
+telecom construction permits, headline numbers, news, and links to the coverage
+checkers. Think "Yahoo Finance, but the ticker is your neighborhood's fiber".
+
+Pure Python 3 standard library, no pip installs. The page it produces makes **no
+third-party requests at runtime**: Leaflet is vendored and the map tiles are cached
+locally at build time.
+
+## What it shows
+
+| Panel | Source | Freshness |
+|---|---|---|
+| Permit pins and table | City of San Diego Development Services approvals (DataSD, daily CSV). Right-of-way construction permits and traffic-control permits held by telecom companies, with the job named in the scope line, e.g. `AT&T FIBER (A05EE9V)`. | Daily |
+| Headline tiles | Counts from the permits: fiber jobs in the box in the last 12 months vs the prior 12, active permits, what is new since the last build, and the same fiber count city-wide. | Each build |
+| News | Google News RSS, one query per topic in `config.json`. | Each build |
+| Links | FCC National Broadband Map centred on the area, AT&T / T-Mobile / Google Fiber availability checkers, the City Project Finder. | Static |
+
+Permits are a leading indicator: a company pulls a right-of-way permit weeks to
+months before the crews show up, and the FCC map only updates twice a year.
+
+## Run it
+
+```bash
+python3 -m fibermap build          # fetch permits, news, tiles; write site/data.json
+python3 -m fibermap serve          # http://127.0.0.1:8765/
+python3 -m unittest discover -s tests -t .
+```
+
+The first build downloads ~22 MB per year of permits (cached, conditional GET after
+that), the Census ZCTA gazetteer if your config has no `center`, and a few hundred
+OpenStreetMap tiles for the box. Later builds are small.
+
+Nightly, on the host that serves it:
+
+```cron
+15 5 * * * cd /path/to/fiber-map && python3 -m fibermap build >> data/build.log 2>&1
+```
+
+Then serve `site/` with anything static (Caddy `file_server`, `python3 -m http.server`),
+or rsync `site/` to a web root.
+
+## Point it at another ZIP
+
+Copy `config.example.json` to `config.json` and edit:
+
+- `zip`: the centre and a sensible radius are looked up from the Census ZCTA
+  gazetteer. Override with `center: [lat, lng]` and `radius_km`, or give an explicit
+  `bbox: [south, west, north, east]`.
+- `label`: the page title.
+- `news.queries`: Google News searches. Provider-name queries work well
+  (`"AT&T Fiber" "Austin"`); ZIP codes and neighborhood names return noise.
+- `permits.source`: `sandiego` for addresses inside the City of San Diego, `none`
+  elsewhere (you still get the map, the news and the links). See below for adding a city.
+- `permits.extra_companies`: extra `{"name", "pattern"}` regex rules for local ISPs.
+- `tiles.zooms`: zoom levels to cache. 13 to 16 is about 200 tiles for a 5 km box.
+
+`python3 -m fibermap resolve-zip 78704` prints what the gazetteer knows about a ZIP.
+
+## Adding a permit source for another city
+
+Each source is a module in `fibermap/permits/` exposing
+`fetch(cfg, cache_dir) -> (list[Permit], info)` and registered in
+`fibermap/permits/__init__.py`. `Permit` is in `permits/base.py`; `classify.py` turns
+holder and scope text into a company name and is shared. Most cities publish permits
+through Socrata, ArcGIS Hub or a CSV export; the only hard requirements are a stable
+permit id, a lat/long, a status and some free text naming the applicant.
+
+## Layout
+
+```
+fibermap/            the package (python3 -m fibermap)
+  config.py          load config.json, resolve the ZIP to a box
+  zcta.py            Census ZCTA gazetteer lookup
+  geo.py             bbox and tile maths
+  permits/           source adapters (sandiego.py) + classifier
+  news.py            Google News RSS
+  tiles.py           OSM tile cache for the box
+  history.py         first-seen dates for "new" badges
+  build.py           writes site/data.json
+site/                static page: index.html, app.js, style.css, vendor/leaflet
+data/                caches and state (git-ignored)
+tests/               unittest
+```
+
+## Data notes
+
+- FCC National Broadband Map data has twice-yearly as-of dates (June 30, December 31)
+  published about four months later; the page links to it rather than mirroring it.
+  Bulk downloads need a free BDC API account; a future version could draw the fiber
+  footprint from those files.
+- Permit holders are sometimes people (the contractor's PM), so classification reads
+  the scope text too. SDG&E and water/sewer work are excluded even when they mention
+  fiber.
+- Many AT&T "fiber" permits are a single drop from a street cabinet to one property
+  ("... to property owner's demarcation point"). Those are tagged `drop` so a street of
+  business hookups does not read as a neighborhood build.
+- Permits still in "Opened" status often have no coordinates yet, so the most
+  forward-looking filings can be missing from the map until they are issued.
+- "New" means first seen by this tool within `new_window_days`; on the very first build
+  items are dated by their own permit or publication date instead.

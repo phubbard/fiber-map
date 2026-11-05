@@ -1,0 +1,29 @@
+{
+  "label": "University City, San Diego (92122)",
+  "zip": "92122",
+  "radius_km": 2.5,
+  "permits": {
+    "source": "sandiego",
+    "years_back": 2,
+    "extra_companies": []
+  },
+  "tiles": {
+    "mode": "local",
+    "zooms": [13, 14, 15, 16]
+  },
+  "news": {
+    "max_age_days": 180,
+    "per_query": 15,
+    "queries": [
+      {"label": "AT&T Fiber", "q": "\"AT&T Fiber\" \"San Diego\""},
+      {"label": "T-Mobile Fiber", "q": "\"T-Mobile Fiber\" California"},
+      {"label": "Google Fiber", "q": "\"Google Fiber\" California"},
+      {"label": "Wyyerd", "q": "Wyyerd fiber"},
+      {"label": "Cox", "q": "Cox fiber \"San Diego\""},
+      {"label": "Spectrum", "q": "Spectrum fiber \"San Diego\""},
+      {"label": "Broadband", "q": "fiber broadband \"San Diego\""}
+    ]
+  },
+  "new_window_days": 7,
+  "links": []
+}

@@ -1,0 +1,15 @@
+# fetched data and build output
+data/
+site/data.json
+site/tiles/
+
+# python
+__pycache__/
+*.pyc
+venv/
+.venv/
+
+# editors / tooling
+.idea/
+.claude/
+.DS_Store

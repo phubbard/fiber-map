@@ -1,0 +1,25 @@
+{
+  "label": "My neighborhood (ZIP 00000)",
+  "zip": "00000",
+  "permits": {
+    "source": "none",
+    "years_back": 2,
+    "extra_companies": []
+  },
+  "tiles": {
+    "mode": "local",
+    "zooms": [13, 14, 15, 16]
+  },
+  "news": {
+    "max_age_days": 180,
+    "per_query": 15,
+    "queries": [
+      {"label": "AT&T Fiber", "q": "\"AT&T Fiber\" \"My City\""},
+      {"label": "T-Mobile Fiber", "q": "\"T-Mobile Fiber\" \"My State\""},
+      {"label": "Google Fiber", "q": "\"Google Fiber\" \"My City\""},
+      {"label": "Broadband", "q": "fiber broadband \"My City\""}
+    ]
+  },
+  "new_window_days": 7,
+  "links": []
+}
