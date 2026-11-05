@@ -1,6 +1,6 @@
 import unittest
 
-from fibermap.permits.classify import classify, is_drop, mentions_fiber, parse_job
+from fibermap.permits.classify import classify, company_from_holder, is_drop, mentions_fiber, parse_job, watchlist_candidate
 
 
 class ClassifyTests(unittest.TestCase):
@@ -36,6 +36,37 @@ class ClassifyTests(unittest.TestCase):
     def test_drop_detection(self):
         self.assertTrue(is_drop("PLACE 1-4\" DUCT FROM EXISTING AT&T SAI TO PROPERTY OWNER'S DEMARCATION POINT"))
         self.assertFalse(is_drop("Place 2,400 ft of 2-inch conduit and 3 handholes along Governor Dr"))
+
+    def test_telecom_named_holder_is_kept_under_its_own_name(self):
+        self.assertEqual(classify("ACME NETWORKS LLC", "Install conduit and handholes"), "Acme Networks")
+        self.assertEqual(classify("San Diego Broadband", ""), "San Diego Broadband")
+        self.assertEqual(company_from_holder("Smartlink Wireless, Inc."), "Smartlink Wireless")
+        self.assertIsNone(company_from_holder("Mastec North America"))
+        self.assertIsNone(classify("Mastec North America", "trench for conduit"))
+
+    def test_holder_person_suffix_and_casing(self):
+        self.assertEqual(company_from_holder("BOLDYN NETWORKS - Scott Lewis"), "Boldyn Networks")
+        self.assertEqual(company_from_holder("HP COMMUNICATIONS INC"), "HP Communications")
+        self.assertEqual(company_from_holder("HP Communications"), "HP Communications")
+
+    def test_exclusion_is_about_the_holder_not_a_passing_mention(self):
+        self.assertEqual(classify("AT&T California", "ATT FIBER (A05B699): bore under storm drain"), "AT&T")
+        self.assertIsNone(classify("City of San Diego", "fiber conduit for traffic signals"))
+        self.assertIsNone(classify("Some Contractor", "fiber to the new water meter vault"))
+
+    def test_watchlist_candidate(self):
+        self.assertTrue(watchlist_candidate("IKE Smart City") is False)
+        self.assertFalse(watchlist_candidate("Clinton Boogaard"))
+        self.assertFalse(watchlist_candidate("California American Water Company"))
+        self.assertTrue(watchlist_candidate("Mastec North America"))
+        self.assertTrue(watchlist_candidate("Ruto Vo Inc"))
+        self.assertTrue(watchlist_candidate("Clinton Boogaard", telecomish=2))  # a PM whose jobs smell like telecom
+        self.assertFalse(watchlist_candidate("Clinton Boogaard", telecomish=1))
+        self.assertEqual(classify("", "INTREPID FIBER: Public Right of Way Permit"), "Intrepid Fiber")
+
+    def test_known_overbuilders(self):
+        self.assertEqual(classify("", "METRONET: Public Right of Way Permit"), "Metronet")
+        self.assertEqual(classify("SiFi Networks Fullerton LLC", ""), "SiFi Networks")
 
     def test_ting_needs_word_boundary(self):
         self.assertIsNone(classify("", "street lighting conduit"))

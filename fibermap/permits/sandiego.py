@@ -13,7 +13,7 @@ from typing import Iterable, Iterator
 
 from ..http import fetch_cached
 from .base import Permit, phase_for
-from .classify import classify, is_drop, mentions_fiber, parse_job
+from .classify import classify, is_drop, mentions_fiber, parse_job, telecom_scope
 
 log = logging.getLogger(__name__)
 
@@ -55,7 +55,10 @@ def _float(value: str | None) -> float | None:
     return f if f != 0.0 else None
 
 
-def parse_rows(rows: Iterable[dict], extra_rules: list[dict] | None = None) -> Iterator[Permit]:
+def parse_rows(rows: Iterable[dict], extra_rules: list[dict] | None = None,
+               unmatched: dict | None = None) -> Iterator[Permit]:
+    """Yield telecom permits. If `unmatched` is given, count right-of-way permit
+    holders that matched nothing, as {holder: {"count", "first_created", "last_created"}}."""
     for row in rows:
         kind = kind_for(row.get("APPROVAL_TYPE"))
         if not kind:
@@ -69,6 +72,15 @@ def parse_rows(rows: Iterable[dict], extra_rules: list[dict] | None = None) -> I
         scope = " | ".join(parts)
         company = classify(holder, scope, extra_rules)
         if not company:
+            if unmatched is not None and holder and kind != "traffic":
+                created = _date(row.get("APPROVAL_CREATE_DATE")) or ""
+                u = unmatched.setdefault(holder, {"count": 0, "telecomish": 0, "first_created": created, "last_created": created})
+                u["count"] += 1
+                if telecom_scope(scope):
+                    u["telecomish"] += 1
+                if created:
+                    u["first_created"] = min(u["first_created"] or created, created)
+                    u["last_created"] = max(u["last_created"], created)
             continue
         yield Permit(
             id=(row.get("APPROVAL_ID") or "").strip(),
@@ -95,15 +107,17 @@ def fetch(cfg: dict, cache_dir: str) -> tuple[list[Permit], dict]:
     years_back = int(cfg["permits"].get("years_back", 2))
     this_year = date.today().year
     permits: dict[str, Permit] = {}
+    unmatched: dict[str, dict] = {}
     for year in range(this_year - years_back, this_year + 1):
         url = CSV_URL.format(year=year)
         path = fetch_cached(url, os.path.join(cache_dir, f"sandiego_created_{year}.csv"))
         n = 0
         with open(path, newline="", encoding="utf-8", errors="replace") as f:
-            for p in parse_rows(csv.DictReader(f), cfg["permits"].get("extra_companies")):
+            for p in parse_rows(csv.DictReader(f), cfg["permits"].get("extra_companies"), unmatched):
                 if p.id:
                     permits[p.id] = p
                     n += 1
         log.info("%s: %d telecom permits from %d", LABEL, n, year)
-    info = {"source": SOURCE, "label": LABEL, "url": DATASET_URL, "extra_links": EXTRA_LINKS}
+    info = {"source": SOURCE, "label": LABEL, "url": DATASET_URL, "extra_links": EXTRA_LINKS,
+            "unmatched_holders": unmatched}
     return list(permits.values()), info

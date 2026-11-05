@@ -8,16 +8,41 @@
   },
   "tiles": {
     "mode": "local",
-    "zooms": [13, 14, 15, 16]
+    "zooms": [
+      13,
+      14,
+      15,
+      16
+    ]
   },
   "news": {
     "max_age_days": 180,
     "per_query": 15,
     "queries": [
-      {"label": "AT&T Fiber", "q": "\"AT&T Fiber\" \"My City\""},
-      {"label": "T-Mobile Fiber", "q": "\"T-Mobile Fiber\" \"My State\""},
-      {"label": "Google Fiber", "q": "\"Google Fiber\" \"My City\""},
-      {"label": "Broadband", "q": "fiber broadband \"My City\""}
+      {
+        "label": "AT&T Fiber",
+        "q": "\"AT&T Fiber\" \"My City\""
+      },
+      {
+        "label": "T-Mobile Fiber",
+        "q": "\"T-Mobile Fiber\" \"My State\""
+      },
+      {
+        "label": "Google Fiber",
+        "q": "\"Google Fiber\" \"My City\""
+      },
+      {
+        "label": "Broadband",
+        "q": "fiber broadband \"My City\""
+      },
+      {
+        "label": "New fiber",
+        "q": "\"My City\" (\"fiber internet\" OR \"fiber broadband\" OR \"fiber-to-the-home\" OR \"fiber network\")"
+      },
+      {
+        "label": "New ISP",
+        "q": "\"My City\" \"internet provider\" (new OR launches OR expands)"
+      }
     ]
   },
   "new_window_days": 7,

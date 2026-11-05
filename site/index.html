@@ -17,6 +17,8 @@
   <nav class="links" id="links" aria-label="Check availability"></nav>
 </header>
 
+<section class="banner" id="banner" aria-label="What is new"></section>
+
 <section class="kpis" id="kpis" aria-label="Headline numbers"></section>
 
 <main class="grid">
@@ -46,6 +48,12 @@
     </table>
   </div>
 </section>
+
+<details class="panel watch" id="watchlist">
+  <summary>Frequent right-of-way permit holders that matched no telecom rule</summary>
+  <p class="key">City-wide, active in the last 12 months, ranked by how many of their permits describe conduit, vaults, cable or antennas. A newcomer with an unfamiliar name shows up here first; add it to the rules in <code>fibermap/permits/classify.py</code> or <code>extra_companies</code> in config.</p>
+  <div class="table-wrap"><table id="holders"><thead><tr><th>Holder</th><th class="num">Permits</th><th class="num">Telecom-style scopes</th><th class="num">First permit</th></tr></thead><tbody></tbody></table></div>
+</details>
 
 <footer id="footer" class="footer"></footer>
 

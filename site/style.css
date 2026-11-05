@@ -131,3 +131,23 @@ td.scope { color: var(--text-secondary); max-width: 440px; }
 
 .footer { margin-top: 14px; color: var(--text-muted); font-size: 12px; display: flex; flex-wrap: wrap; gap: 6px 16px; }
 .footer a { color: var(--text-secondary); }
+
+/* Banner: what changed, and whether the nightly build is still running. */
+.banner { margin-bottom: 14px; }
+.banner-head { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: baseline; margin-bottom: 6px; }
+.banner-head strong { font-size: 15px; }
+.muted { color: var(--text-muted); font-size: 13px; }
+.alert { padding: 10px 14px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface-1); color: var(--text-secondary); }
+.alert.warn { border-color: var(--critical); color: var(--critical); font-weight: 600; margin-bottom: 8px; }
+.alerts { list-style: none; margin: 0; padding: 0; background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; }
+.alerts li { display: flex; gap: 10px; align-items: baseline; padding: 8px 14px; border-top: 1px solid var(--hairline); border-left: 3px solid transparent; }
+.alerts li:first-child { border-top: 0; }
+.alerts li.unseen { border-left-color: var(--accent); font-weight: 600; }
+.alerts li.new_company { background: color-mix(in srgb, var(--accent) 8%, transparent); }
+.alerts li[data-id] { cursor: pointer; }
+.alerts li[data-id]:hover { background: var(--hairline); }
+.alerts .when { color: var(--text-muted); font-size: 12px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.alerts .chip-dot { flex: none; position: relative; top: 3px; }
+.watch { margin-top: 14px; }
+.watch summary { cursor: pointer; color: var(--text-secondary); font-weight: 600; font-size: 14px; }
+.watch code { font-size: 12px; }

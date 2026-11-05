@@ -12,10 +12,12 @@ locally at build time.
 
 | Panel | Source | Freshness |
 |---|---|---|
+| Banner | Companies that pulled their first permit here or city-wide, and new right-of-way permits in the box, over the last `new_window_days`. Items that appeared since your last visit on this browser are highlighted. A red warning appears when the page was built more than two days ago, which is how a dead cron job shows itself. | Each build |
 | Permit pins and table | City of San Diego Development Services approvals (DataSD, daily CSV). Right-of-way construction permits and traffic-control permits held by telecom companies, with the job named in the scope line, e.g. `AT&T FIBER (A05EE9V)`. | Daily |
 | Headline tiles | Counts from the permits: fiber jobs in the box in the last 12 months vs the prior 12, active permits, what is new since the last build, and the same fiber count city-wide. | Each build |
 | News | Google News RSS, one query per topic in `config.json`. | Each build |
 | Links | FCC National Broadband Map centred on the area, AT&T / T-Mobile / Google Fiber availability checkers, the City Project Finder. | Static |
+| Watchlist | Frequent right-of-way permit holders city-wide that matched no telecom rule, so a newcomer with an unfamiliar name can be spotted and given a rule. | Each build |
 
 Permits are a leading indicator: a company pulls a right-of-way permit weeks to
 months before the crews show up, and the FCC map only updates twice a year.
@@ -96,8 +98,10 @@ tests/               unittest
   Bulk downloads need a free BDC API account; a future version could draw the fiber
   footprint from those files.
 - Permit holders are sometimes people (the contractor's PM), so classification reads
-  the scope text too. SDG&E and water/sewer work are excluded even when they mention
-  fiber.
+  the scope text too. A holder whose name says telecom (Communications, Networks,
+  Broadband, Wireless, ...) is kept under that name even when the scope never says
+  "fiber", so a newcomer appears before anyone writes a rule for it. SDG&E and
+  water/sewer work are excluded even when they mention fiber.
 - Many AT&T "fiber" permits are a single drop from a street cabinet to one property
   ("... to property owner's demarcation point"). Those are tagged `drop` so a street of
   business hookups does not read as a neighborhood build.

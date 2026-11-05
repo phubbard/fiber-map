@@ -8,6 +8,7 @@ from collections import defaultdict
 from datetime import date, datetime, timedelta, timezone
 
 from . import __version__, config, geo, history, permits
+from .permits.classify import watchlist_candidate
 from .news import fetch_news
 from .tiles import ensure_tiles
 
@@ -54,6 +55,88 @@ def summarize(items: list[permits.Permit], today: date | None = None) -> dict:
     }
 
 
+def _iso(value: str | None) -> str | None:
+    """Normalise a date or timestamp to the ISO form used in state.json."""
+    if not value:
+        return None
+    return value + "T00:00:00Z" if len(value) == 10 else value
+
+
+def mark_section(state: dict, key: str, items, now_iso: str) -> dict:
+    """Record first-seen dates for `items` = (id, own_date). An item is dated by its own
+    date (permit created, story published) when it has one, so a rule change that
+    surfaces old permits never makes them look new; `now` is only the fallback."""
+    section = state.setdefault(key, {})
+    for k, own in items:
+        if k and k not in section:
+            section[k] = _iso(own) or now_iso
+    return section
+
+
+def compute_alerts(in_area: list[permits.Permit], state: dict, now_iso: str, window_days: int, source_label: str) -> list[dict]:
+    """Banner lines: companies new to the area or to the source, and new right-of-way permits here."""
+    now = datetime.strptime(now_iso, "%Y-%m-%dT%H:%M:%SZ")
+    cutoff = (now - timedelta(days=window_days)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    seen_permits = state.get("permits", {})
+    seen_companies = state.get("companies", {})
+    first_in_area: dict[str, str] = {}
+    for p in in_area:
+        if p.kind == "traffic":   # construction permits only; traffic control is maintenance noise
+            continue
+        fs = seen_permits.get(p.id, now_iso)
+        if p.company not in first_in_area or fs < first_in_area[p.company]:
+            first_in_area[p.company] = fs
+    alerts = []
+    companies = set(first_in_area) | {co for co, fs in seen_companies.items() if fs >= cutoff}
+    for co in sorted(companies):
+        area_fs = first_in_area.get(co)
+        src_fs = seen_companies.get(co)
+        new_area = area_fs is not None and area_fs >= cutoff
+        new_src = src_fs is not None and src_fs >= cutoff
+        if not (new_area or new_src):
+            continue
+        if new_src and new_area:
+            text = f"{co} pulled its first {source_label} permit, and it is in this area"
+        elif new_src:
+            text = f"{co} pulled its first {source_label} permit (outside this area)"
+        else:
+            text = f"{co} pulled its first permit in this area"
+        dates = [d for d, flag in ((area_fs, new_area), (src_fs, new_src)) if flag and d]
+        alerts.append({"kind": "new_company", "date": max(dates), "company": co, "text": text})
+    for p in in_area:
+        if p.kind == "traffic":
+            continue
+        fs = seen_permits.get(p.id, now_iso)
+        if fs < cutoff:
+            continue
+        what = "fiber right-of-way permit" if p.fiber else ("encroachment permit" if p.kind == "encroachment" else "right-of-way permit")
+        where = p.address or "an address not given yet"
+        alerts.append({
+            "kind": "new_fiber_permit" if p.fiber else "new_permit",
+            "date": fs, "company": p.company, "permit_id": p.id,
+            "text": f"{p.company}: new {what} at {where}" + (" (single drop)" if p.drop else ""),
+        })
+    alerts.sort(key=lambda a: (a["date"], a["kind"]), reverse=True)
+    return alerts
+
+
+def watchlist(unmatched: dict, seen_holders: dict, active_days: int = 365, limit: int = 20) -> dict:
+    """Frequent right-of-way permit holders that matched no telecom rule, so a newcomer
+    with an unfamiliar name can be spotted and given a rule."""
+    since = (date.today() - timedelta(days=active_days)).isoformat()
+    rows = []
+    for holder, u in unmatched.items():
+        telecomish = u.get("telecomish", 0)
+        if (u.get("last_created") or "") < since or not watchlist_candidate(holder, telecomish):
+            continue
+        if u["count"] < 2 and telecomish == 0:
+            continue
+        rows.append({"holder": holder, "count": u["count"], "telecomish": telecomish,
+                     "first_created": u.get("first_created") or None, "first_seen": seen_holders.get(holder)})
+    rows.sort(key=lambda r: (-r["telecomish"], -r["count"], r["holder"]))
+    return {"unmatched_holders": rows[:limit], "active_since": since}
+
+
 def default_links(cfg: dict, source_info: dict) -> list[dict]:
     lat, lng = cfg["center"]
     links = [
@@ -90,15 +173,17 @@ def build(config_path: str, no_tiles: bool = False, no_news: bool = False) -> di
     now_iso = now.strftime("%Y-%m-%dT%H:%M:%SZ")
     state_path = os.path.join(data_dir, "state.json")
     state = history.load_state(state_path)
-    first_build = "last_build" not in state
-    if first_build:
-        # Nothing is "new" just because the tool is new: date items by their own dates.
-        for p in in_area:
-            state["permits"].setdefault(p.id, (p.created or now_iso[:10]) + "T00:00:00Z")
-        for n in news:
-            state["news"].setdefault(n["link"], n["published"] or now_iso)
-    history.mark_seen(state["permits"], (p.id for p in in_area), now_iso)
-    history.mark_seen(state["news"], (n["link"] for n in news), now_iso)
+    co_first: dict[str, str] = {}
+    for p in all_permits:
+        if p.created and (p.company not in co_first or p.created < co_first[p.company]):
+            co_first[p.company] = p.created
+    unmatched = source_info.pop("unmatched_holders", {}) or {}
+    mark_section(state, "permits", ((p.id, p.created) for p in in_area), now_iso)
+    mark_section(state, "news", ((n["link"], n["published"]) for n in news), now_iso)
+    mark_section(state, "companies", co_first.items(), now_iso)
+    mark_section(state, "holders", ((h, u.get("first_created")) for h, u in unmatched.items()), now_iso)
+    alerts = compute_alerts(in_area, state, now_iso, cfg["new_window_days"], source_info.get("label", "source"))
+    watch = watchlist(unmatched, state["holders"])
     state["last_build"] = now_iso
     history.save_state(state_path, state)
 
@@ -127,6 +212,8 @@ def build(config_path: str, no_tiles: bool = False, no_news: bool = False) -> di
         "permits": permit_rows,
         "stats": {"area": summarize(in_area), "source": summarize(all_permits)},
         "news": news,
+        "alerts": alerts,
+        "watchlist": watch,
         "tiles": tiles_info,
         "links": default_links(cfg, source_info),
     }
@@ -141,5 +228,5 @@ def build(config_path: str, no_tiles: bool = False, no_news: bool = False) -> di
     with open(js_path + ".tmp", "w") as f:
         f.write("window.FIBERMAP_DATA = " + json.dumps(out).replace("</", "<\\/") + ";\n")
     os.replace(js_path + ".tmp", js_path)
-    log.info("wrote %s (%d permits, %d headlines)", out_path, len(permit_rows), len(news))
+    log.info("wrote %s (%d permits, %d headlines, %d alerts)", out_path, len(permit_rows), len(news), len(alerts))
     return out

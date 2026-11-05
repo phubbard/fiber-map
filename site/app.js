@@ -166,7 +166,15 @@
     $("#toggle-done").addEventListener("change", (ev) => { state.done = ev.target.checked; build(); });
     renderLegend();
     build();
-    return map;
+    function focus(id) {
+      const m = markers.get(id);
+      const p = data.permits.find((x) => x.id === id);
+      if (!m && !(p && p.lat != null)) return;
+      map.setView(m ? m.getLatLng() : [p.lat, p.lng], Math.max(map.getZoom(), 16));
+      if (m) m.openPopup();
+      $("#map").scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+    return { map, focus };
   }
 
   // ---- permit table ------------------------------------------------------------
@@ -193,6 +201,44 @@
       m.openPopup();
       $("#map").scrollIntoView({ behavior: "smooth", block: "center" });
     }));
+  }
+
+  // ---- banner: what changed, and is the build still running ---------------------
+  function renderBanner(data, focus) {
+    const el = $("#banner");
+    const alerts = data.alerts || [];
+    let prev = null;
+    const nowIso = new Date().toISOString();
+    try { prev = localStorage.getItem("fibermap.lastVisit"); localStorage.setItem("fibermap.lastVisit", nowIso); } catch (e) { /* private window etc. */ }
+    const unseen = (a) => !prev || a.date > prev;
+    const parts = [];
+    if (daysSince(data.generated_at) > 2) {
+      parts.push(`<div class="alert warn">This page was last built ${relTime(data.generated_at)}. The nightly job may have stopped; check ~/logs/fiber-map.log on the server.</div>`);
+    }
+    const nUnseen = alerts.filter(unseen).length;
+    const since = prev ? `${nUnseen} since your last visit ${relTime(prev)}` : "first visit on this browser";
+    parts.push(`<div class="banner-head"><strong>Last ${data.new_window_days} days</strong><span class="muted">${alerts.length} item${alerts.length === 1 ? "" : "s"} · ${since}</span></div>`);
+    if (!alerts.length) {
+      parts.push(`<div class="alert">Nothing new: no company pulled its first permit here or city-wide, and no new right-of-way permit landed in the box.</div>`);
+    } else {
+      parts.push(`<ul class="alerts">` + alerts.map((a) =>
+        `<li class="${a.kind} ${unseen(a) ? "unseen" : ""}" ${a.permit_id ? `data-id="${esc(a.permit_id)}"` : ""}>${dot(a.company)}<span class="when">${fmtDate(a.date)}</span><span>${esc(a.text)}</span></li>`
+      ).join("") + `</ul>`);
+    }
+    el.innerHTML = parts.join("");
+    el.querySelectorAll("li[data-id]").forEach((li) => li.addEventListener("click", () => focus(li.dataset.id)));
+  }
+
+  // ---- watchlist of unmatched holders --------------------------------------------
+  function renderWatchlist(data) {
+    const w = data.watchlist;
+    const details = $("#watchlist");
+    if (!w || !w.unmatched_holders || !w.unmatched_holders.length) { details.hidden = true; return; }
+    $("#holders tbody").innerHTML = w.unmatched_holders.map((h) => {
+      const isNew = daysSince(h.first_created) <= data.new_window_days;
+      return `<tr><td>${esc(h.holder)}${isNew ? ' <span class="new">new</span>' : ""}</td><td class="num">${h.count}</td>` +
+        `<td class="num">${h.telecomish || 0}</td><td class="num">${fmtDate(h.first_created)}</td></tr>`;
+    }).join("");
   }
 
   // ---- news ---------------------------------------------------------------------
@@ -237,7 +283,9 @@
     }
     renderHeader(data);
     renderKpis(data);
-    renderMap(data);
+    const mapApi = renderMap(data);
+    renderBanner(data, mapApi.focus);
+    renderWatchlist(data);
     renderNews(data);
     renderFooter(data);
   }

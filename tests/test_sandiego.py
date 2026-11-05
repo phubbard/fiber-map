@@ -44,6 +44,13 @@ class SanDiegoParseTests(unittest.TestCase):
         wy = permits["4"]
         self.assertEqual((wy.phase, wy.lat, wy.lng), ("planned", None, None))
 
+    def test_unmatched_holders_are_collected(self):
+        unmatched = {}
+        list(sandiego.parse_rows(rows(), None, unmatched))
+        self.assertEqual(set(unmatched), {"Yan Fu Lin"})
+        self.assertEqual(unmatched["Yan Fu Lin"]["count"], 1)
+        self.assertEqual(unmatched["Yan Fu Lin"]["first_created"], "2026-08-21")
+
     def test_kind_for(self):
         self.assertEqual(sandiego.kind_for("Approval - Construction - Grading-Right of Way Pmt"), "row")
         self.assertEqual(sandiego.kind_for("Encroachment Agreement"), "encroachment")
