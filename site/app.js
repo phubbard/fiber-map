@@ -101,6 +101,9 @@
     const [s, w, n, e] = data.area.bbox;
     const map = L.map("map", { scrollWheelZoom: false });
     map.fitBounds([[s, w], [n, e]]);
+    // fitBounds shows the whole box with margin; zoom_offset (config, default 1) tightens it to the ZIP.
+    const offset = Number(data.area.zoom_offset || 0);
+    if (offset) map.setZoom(map.getZoom() + offset);
     const t = data.tiles || { mode: "remote" };
     if (t.mode === "local" && t.zooms && t.zooms.length) {
       const minZ = Math.min(...t.zooms), maxZ = Math.max(...t.zooms);

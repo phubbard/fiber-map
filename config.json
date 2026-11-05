@@ -2,6 +2,7 @@
   "label": "University City, San Diego (92122)",
   "zip": "92122",
   "radius_km": 2.5,
+  "zoom_offset": 1,
   "permits": {
     "source": "sandiego",
     "years_back": 2,

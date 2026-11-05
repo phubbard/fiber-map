@@ -1,6 +1,7 @@
 {
   "label": "My neighborhood (ZIP 00000)",
   "zip": "00000",
+  "zoom_offset": 1,
   "permits": {
     "source": "none",
     "years_back": 2,

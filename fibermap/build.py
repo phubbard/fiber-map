@@ -206,6 +206,7 @@ def build(config_path: str, no_tiles: bool = False, no_news: bool = False) -> di
             "center": cfg["center"],
             "radius_km": cfg["radius_km"],
             "bbox": cfg["bbox"],
+            "zoom_offset": cfg.get("zoom_offset", 1),
         },
         "new_window_days": cfg["new_window_days"],
         "source": source_info,

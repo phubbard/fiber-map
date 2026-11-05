@@ -55,6 +55,8 @@ Copy `config.example.json` to `config.json` and edit:
 - `zip`: the centre and a sensible radius are looked up from the Census ZCTA
   gazetteer. Override with `center: [lat, lng]` and `radius_km`, or give an explicit
   `bbox: [south, west, north, east]`.
+- `zoom_offset`: how many levels to zoom in after the map fits the box (default 1, so
+  the view is the ZIP rather than the box plus margin; 0 shows the whole box).
 - `label`: the page title.
 - `news.queries`: Google News searches. Provider-name queries work well
   (`"AT&T Fiber" "Austin"`); ZIP codes and neighborhood names return noise.
