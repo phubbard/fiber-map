@@ -10,7 +10,7 @@ DEST="${FIBERMAP_DEST:-$HOME/html/fiber-map}"
 NTFY="${FIBERMAP_NTFY:-}"
 
 notify_failure() {
-    echo "$(date -Is) deploy FAILED (exit $?)" >&2
+    echo "$(date "+%Y-%m-%dT%H:%M:%S%z") deploy FAILED (exit $?)" >&2
     if [ -n "$NTFY" ]; then
         curl -fsS -m 10 -H "Title: fiber-map deploy failed on $(hostname)" -H "Priority: high" \
             -d "see $HOME/logs/fiber-map.log" "https://ntfy.sh/$NTFY" >/dev/null || true
@@ -31,4 +31,4 @@ if [ -d "$DEST" ] && [ ! -e "$DEST/index.html" ] && [ -n "$(ls -A "$DEST")" ]; t
 fi
 mkdir -p "$DEST"
 rsync -a --delete --exclude '*.tmp' site/ "$DEST"/
-echo "$(date -Is) published $(find "$DEST" -type f | wc -l | tr -d ' ') files to $DEST"
+echo "$(date "+%Y-%m-%dT%H:%M:%S%z") published $(find "$DEST" -type f | wc -l | tr -d ' ') files to $DEST"
