@@ -135,5 +135,11 @@ def build(config_path: str, no_tiles: bool = False, no_news: bool = False) -> di
     with open(tmp, "w") as f:
         json.dump(out, f, indent=1)
     os.replace(tmp, out_path)
+    # Same data as a script, so index.html works when opened straight from disk
+    # (browsers refuse fetch() over file://). "</" is escaped so no string can end the tag.
+    js_path = os.path.join(site_dir, "data.js")
+    with open(js_path + ".tmp", "w") as f:
+        f.write("window.FIBERMAP_DATA = " + json.dumps(out).replace("</", "<\\/") + ";\n")
+    os.replace(js_path + ".tmp", js_path)
     log.info("wrote %s (%d permits, %d headlines)", out_path, len(permit_rows), len(news))
     return out

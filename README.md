@@ -23,10 +23,13 @@ months before the crews show up, and the FCC map only updates twice a year.
 ## Run it
 
 ```bash
-python3 -m fibermap build          # fetch permits, news, tiles; write site/data.json
+python3 -m fibermap build          # fetch permits, news, tiles; write site/data.json + data.js
 python3 -m fibermap serve          # http://127.0.0.1:8765/
 python3 -m unittest discover -s tests -t .
 ```
+
+After a build you can also just open `site/index.html` in a browser: the page reads
+`data.js`, so no server is needed.
 
 The first build downloads ~22 MB per year of permits (cached, conditional GET after
 that), the Census ZCTA gazetteer if your config has no `center`, and a few hundred

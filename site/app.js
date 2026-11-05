@@ -221,14 +221,19 @@
   }
 
   async function main() {
-    let data;
-    try {
-      const r = await fetch("data.json", { cache: "no-store" });
-      if (!r.ok) throw new Error("HTTP " + r.status);
-      data = await r.json();
-    } catch (err) {
-      $("#subtitle").textContent = "No data.json yet. Run: python3 -m fibermap build";
-      return;
+    // data.js (written by the build) works from disk; data.json needs a web server.
+    let data = window.FIBERMAP_DATA || null;
+    if (!data) {
+      try {
+        const r = await fetch("data.json", { cache: "no-store" });
+        if (!r.ok) throw new Error("HTTP " + r.status);
+        data = await r.json();
+      } catch (err) {
+        $("#subtitle").textContent = location.protocol === "file:"
+          ? "Opened from disk but site/data.js is missing. Run: python3 -m fibermap build, then reload."
+          : "No data yet. Run: python3 -m fibermap build";
+        return;
+      }
     }
     renderHeader(data);
     renderKpis(data);

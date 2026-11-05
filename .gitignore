@@ -1,6 +1,7 @@
 # fetched data and build output
 data/
 site/data.json
+site/data.js
 site/tiles/
 
 # python
