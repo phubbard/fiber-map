@@ -35,14 +35,16 @@ The first build downloads ~22 MB per year of permits (cached, conditional GET af
 that), the Census ZCTA gazetteer if your config has no `center`, and a few hundred
 OpenStreetMap tiles for the box. Later builds are small.
 
-Nightly, on the host that serves it:
+Nightly, on the host that serves it, `deploy.sh` pulls the repo, builds, and rsyncs
+`site/` to `~/html/fiber-map` (override with `FIBERMAP_DEST`; set `FIBERMAP_NTFY` to a
+ntfy.sh topic to hear about failures):
 
 ```cron
-15 5 * * * cd /path/to/fiber-map && python3 -m fibermap build >> data/build.log 2>&1
+15 6 * * * $HOME/code/fiber-map/deploy.sh >> $HOME/logs/fiber-map.log 2>&1
 ```
 
-Then serve `site/` with anything static (Caddy `file_server`, `python3 -m http.server`),
-or rsync `site/` to a web root.
+Or serve `site/` directly with anything static (Caddy `file_server`,
+`python3 -m http.server`).
 
 ## Point it at another ZIP
 
