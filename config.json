@@ -2,7 +2,8 @@
   "areas": [
     {"zip": "92122", "label": "University City (92122)", "radius_km": 2.5},
     {"zip": "92126", "label": "Mira Mesa (92126)"},
-    {"zip": "92129", "label": "Rancho Peñasquitos (92129)"}
+    {"zip": "92129", "label": "Rancho Peñasquitos (92129)"},
+    {"zip": "92117", "label": "Clairemont (92117)"}
   ],
   "zoom_offset": 1,
   "permits": {
