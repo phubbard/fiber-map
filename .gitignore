@@ -2,6 +2,7 @@
 data/
 site/data.json
 site/data.js
+site/areas/
 site/tiles/
 
 # python

@@ -1,13 +1,51 @@
-"""Load config.json and fill in the map area from the ZIP when not given explicitly."""
+"""Load config.json and normalise it to a list of areas.
+
+Either shape works:
+  {"zip": "92122", ...}                       one area (the original layout)
+  {"areas": [{"zip": "92122"}, {"zip": "92126", "label": "Mira Mesa (92126)"}], ...}
+Per-area keys: zip, label, center, radius_km, bbox, zoom_offset, news.queries (added to
+the shared ones), links (added to the shared ones).
+"""
 from __future__ import annotations
 
 import json
 import os
+import re
 
 from . import geo
 from .zcta import resolve_zip
 
 DEFAULT_TILE_ZOOMS = [13, 14, 15, 16]
+AREA_KEYS = ("zip", "label", "center", "radius_km", "bbox", "zoom_offset", "news", "links")
+
+
+def _slug(text: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "-", (text or "area").lower()).strip("-") or "area"
+
+
+def normalise_areas(cfg: dict) -> list[dict]:
+    raw = cfg.get("areas")
+    if raw is None:
+        raw = [{k: cfg[k] for k in AREA_KEYS if k in cfg and k not in ("news", "links")}]
+    if not isinstance(raw, list) or not raw:
+        raise ValueError("'areas' must be a non-empty list")
+    areas, keys = [], set()
+    for item in raw:
+        a = dict(item)
+        if not (a.get("zip") or a.get("center") or a.get("bbox")):
+            raise ValueError(f"area {a!r} needs a 'zip', a 'center' or a 'bbox'")
+        if a.get("zip"):
+            a["zip"] = str(a["zip"]).strip().zfill(5)
+        a.setdefault("zoom_offset", cfg.get("zoom_offset", 1))
+        news = a.setdefault("news", {})
+        news.setdefault("queries", [])
+        a.setdefault("links", [])
+        a["key"] = a.get("key") or a.get("zip") or _slug(a.get("label", ""))
+        if a["key"] in keys:
+            raise ValueError(f"duplicate area key {a['key']!r}")
+        keys.add(a["key"])
+        areas.append(a)
+    return areas
 
 
 def load(path: str) -> dict:
@@ -36,23 +74,21 @@ def load(path: str) -> dict:
 
     cfg.setdefault("new_window_days", 7)
     cfg.setdefault("links", [])
-
-    if not (cfg.get("zip") or cfg.get("center") or cfg.get("bbox")):
-        raise ValueError("config needs a 'zip', a 'center' or a 'bbox'")
+    cfg["areas"] = normalise_areas(cfg)
     return cfg
 
 
-def resolve_area(cfg: dict, cache_dir: str) -> dict:
-    """Ensure cfg has center, radius_km, bbox and label. Looks the ZIP up if needed."""
-    if cfg.get("bbox"):
-        south, west, north, east = cfg["bbox"]
-        cfg.setdefault("center", [round((south + north) / 2, 6), round((west + east) / 2, 6)])
-        cfg.setdefault("radius_km", round((north - south) / 2 * geo.KM_PER_DEG_LAT, 2))
+def resolve_area(area: dict, cache_dir: str) -> dict:
+    """Ensure an area has center, radius_km, bbox and label. Looks the ZIP up if needed."""
+    if area.get("bbox"):
+        south, west, north, east = area["bbox"]
+        area.setdefault("center", [round((south + north) / 2, 6), round((west + east) / 2, 6)])
+        area.setdefault("radius_km", round((north - south) / 2 * geo.KM_PER_DEG_LAT, 2))
     else:
-        if not cfg.get("center") or not cfg.get("radius_km"):
-            z = resolve_zip(cfg["zip"], cache_dir)
-            cfg.setdefault("center", [z["lat"], z["lng"]])
-            cfg.setdefault("radius_km", z["radius_km"])
-        cfg["bbox"] = geo.bbox_from_center(cfg["center"][0], cfg["center"][1], cfg["radius_km"])
-    cfg.setdefault("label", f"ZIP {cfg['zip']}" if cfg.get("zip") else "Selected area")
-    return cfg
+        if not area.get("center") or not area.get("radius_km"):
+            z = resolve_zip(area["zip"], cache_dir)
+            area.setdefault("center", [z["lat"], z["lng"]])
+            area.setdefault("radius_km", z["radius_km"])
+        area["bbox"] = geo.bbox_from_center(area["center"][0], area["center"][1], area["radius_km"])
+    area.setdefault("label", f"ZIP {area['zip']}" if area.get("zip") else "Selected area")
+    return area

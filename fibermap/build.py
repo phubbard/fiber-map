@@ -1,4 +1,5 @@
-"""Build site/data.json: permits in the area, source-wide stats, news, tiles."""
+"""Build the site data: a shared index (site/data.json + data.js) and one file per
+area under site/areas/ (<key>.json + <key>.js)."""
 from __future__ import annotations
 
 import json
@@ -8,8 +9,8 @@ from collections import defaultdict
 from datetime import date, datetime, timedelta, timezone
 
 from . import __version__, config, geo, history, permits
-from .permits.classify import watchlist_candidate
 from .news import fetch_news
+from .permits.classify import watchlist_candidate
 from .tiles import ensure_tiles
 
 log = logging.getLogger(__name__)
@@ -41,7 +42,7 @@ def summarize(items: list[permits.Permit], today: date | None = None) -> dict:
             b[p.kind] = b.get(p.kind, 0) + 1
             if p.fiber:
                 b["fiber"] += 1
-        if p.phase in ("active", "planned"):
+        if p.phase in ("active", "planned") and p.kind != "traffic":
             active += 1
             if p.fiber:
                 fiber_active += 1
@@ -137,8 +138,8 @@ def watchlist(unmatched: dict, seen_holders: dict, active_days: int = 365, limit
     return {"unmatched_holders": rows[:limit], "active_since": since}
 
 
-def default_links(cfg: dict, source_info: dict) -> list[dict]:
-    lat, lng = cfg["center"]
+def default_links(area: dict, source_info: dict, shared_links: list[dict]) -> list[dict]:
+    lat, lng = area["center"]
     links = [
         {
             "label": "FCC broadband map here",
@@ -149,25 +150,58 @@ def default_links(cfg: dict, source_info: dict) -> list[dict]:
         {"label": "Google Fiber", "url": "https://fiber.google.com/"},
     ]
     links.extend(source_info.get("extra_links") or [])
-    links.extend(cfg.get("links") or [])
+    links.extend(shared_links or [])
+    links.extend(area.get("links") or [])
     return links
+
+
+def write_data(path_base: str, js_statement: str, obj: dict) -> None:
+    """Write obj as <path_base>.json and as <path_base>.js (the JS form works over file://;
+    '</' is escaped so no string can end the script tag)."""
+    os.makedirs(os.path.dirname(path_base) or ".", exist_ok=True)
+    tmp = path_base + ".json.tmp"
+    with open(tmp, "w") as f:
+        json.dump(obj, f, indent=1)
+    os.replace(tmp, path_base + ".json")
+    tmp = path_base + ".js.tmp"
+    with open(tmp, "w") as f:
+        f.write(js_statement % json.dumps(obj).replace("</", "<\\/") + "\n")
+    os.replace(tmp, path_base + ".js")
+
+
+def merged_news_queries(cfg: dict, areas: list[dict]) -> list[dict]:
+    queries = list(cfg["news"].get("queries", []))
+    seen = {(q["label"], q["q"]) for q in queries}
+    for a in areas:
+        for q in a.get("news", {}).get("queries", []):
+            if (q["label"], q["q"]) not in seen:
+                queries.append(q)
+                seen.add((q["label"], q["q"]))
+    return queries
 
 
 def build(config_path: str, no_tiles: bool = False, no_news: bool = False) -> dict:
     cfg = config.load(config_path)
     data_dir, site_dir = cfg["data_dir"], cfg["site_dir"]
     os.makedirs(data_dir, exist_ok=True)
-    os.makedirs(site_dir, exist_ok=True)
-    cfg = config.resolve_area(cfg, data_dir)
-    log.info("area %s center=%s radius=%.1f km bbox=%s", cfg["label"], cfg["center"], cfg["radius_km"], cfg["bbox"])
+    os.makedirs(os.path.join(site_dir, "areas"), exist_ok=True)
+    areas = [config.resolve_area(a, data_dir) for a in cfg["areas"]]
+    for a in areas:
+        log.info("area %s (%s) center=%s radius=%.1f km", a["label"], a["key"], a["center"], a["radius_km"])
 
     source = permits.get_source(cfg["permits"]["source"])
     all_permits, source_info = source.fetch(cfg, data_dir)
-    in_area = [p for p in all_permits if p.lat is not None and p.lng is not None and geo.in_bbox(p.lat, p.lng, cfg["bbox"])]
-    in_area.sort(key=lambda p: (p.created or "", p.id), reverse=True)
-    log.info("%d telecom permits source-wide, %d in area", len(all_permits), len(in_area))
+    rows_by_area: dict[str, list[permits.Permit]] = {}
+    for a in areas:
+        rows = [p for p in all_permits if p.lat is not None and p.lng is not None and geo.in_bbox(p.lat, p.lng, a["bbox"])]
+        rows.sort(key=lambda p: (p.created or "", p.id), reverse=True)
+        rows_by_area[a["key"]] = rows
+        log.info("%s: %d telecom permits in area", a["label"], len(rows))
+    log.info("%d telecom permits source-wide", len(all_permits))
 
-    news = [] if no_news else fetch_news(cfg)
+    news_cfg = dict(cfg)
+    news_cfg["news"] = dict(cfg["news"], queries=merged_news_queries(cfg, areas))
+    news = [] if no_news else fetch_news(news_cfg)
 
     now = datetime.now(timezone.utc).replace(microsecond=0)
     now_iso = now.strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -178,56 +212,60 @@ def build(config_path: str, no_tiles: bool = False, no_news: bool = False) -> di
         if p.created and (p.company not in co_first or p.created < co_first[p.company]):
             co_first[p.company] = p.created
     unmatched = source_info.pop("unmatched_holders", {}) or {}
-    mark_section(state, "permits", ((p.id, p.created) for p in in_area), now_iso)
+    mark_section(state, "permits", ((p.id, p.created) for rows in rows_by_area.values() for p in rows), now_iso)
     mark_section(state, "news", ((n["link"], n["published"]) for n in news), now_iso)
     mark_section(state, "companies", co_first.items(), now_iso)
     mark_section(state, "holders", ((h, u.get("first_created")) for h, u in unmatched.items()), now_iso)
-    alerts = compute_alerts(in_area, state, now_iso, cfg["new_window_days"], source_info.get("label", "source"))
     watch = watchlist(unmatched, state["holders"])
     state["last_build"] = now_iso
     history.save_state(state_path, state)
 
-    tiles_info = {"mode": "remote"} if no_tiles else ensure_tiles(cfg, site_dir)
+    tiles_info: dict = {"mode": "remote"}
+    if not no_tiles:
+        tiles_info = {"mode": cfg["tiles"].get("mode", "local"), "zooms": sorted(int(z) for z in cfg["tiles"]["zooms"]),
+                      "attribution": "&copy; OpenStreetMap contributors", "fetched": 0, "present": 0}
+    area_index = []
+    for a in areas:
+        rows = rows_by_area[a["key"]]
+        alerts = compute_alerts(rows, state, now_iso, cfg["new_window_days"], source_info.get("label", "source"))
+        if not no_tiles and tiles_info["mode"] == "local":
+            t = ensure_tiles(cfg["tiles"], a["bbox"], site_dir)
+            tiles_info["fetched"] += t.get("fetched", 0)
+            tiles_info["present"] += t.get("present", 0)
+        stats_area = summarize(rows)
+        area_out = {
+            "key": a["key"], "label": a["label"], "zip": a.get("zip"),
+            "center": a["center"], "radius_km": a["radius_km"], "bbox": a["bbox"], "zoom_offset": a["zoom_offset"],
+            "permits": [dict(p.to_dict(), first_seen=state["permits"].get(p.id, now_iso)) for p in rows],
+            "stats": stats_area,
+            "alerts": alerts,
+            "links": default_links(a, source_info, cfg["links"]),
+        }
+        write_data(os.path.join(site_dir, "areas", a["key"]),
+                   'window.FIBERMAP_AREAS = window.FIBERMAP_AREAS || {}; window.FIBERMAP_AREAS[%s] = %%s;' % json.dumps(a["key"]),
+                   area_out)
+        area_index.append({
+            "key": a["key"], "label": a["label"], "zip": a.get("zip"),
+            "permits": len(rows), "open": stats_area["active"],
+            "fiber_12mo": sum(c.get("fiber", 0) for c in stats_area["trailing12"].values()),
+            "alerts": len(alerts),
+        })
+        log.info("%s: %d alerts", a["label"], len(alerts))
 
-    permit_rows = []
-    for p in in_area:
-        d = p.to_dict()
-        d["first_seen"] = state["permits"].get(p.id, now_iso)
-        permit_rows.append(d)
     for n in news:
         n["first_seen"] = state["news"].get(n["link"], now_iso)
-
     out = {
         "generated_at": now_iso,
         "version": __version__,
-        "area": {
-            "label": cfg["label"],
-            "zip": cfg.get("zip"),
-            "center": cfg["center"],
-            "radius_km": cfg["radius_km"],
-            "bbox": cfg["bbox"],
-            "zoom_offset": cfg.get("zoom_offset", 1),
-        },
         "new_window_days": cfg["new_window_days"],
         "source": source_info,
-        "permits": permit_rows,
-        "stats": {"area": summarize(in_area), "source": summarize(all_permits)},
+        "stats": {"source": summarize(all_permits)},
         "news": news,
-        "alerts": alerts,
         "watchlist": watch,
         "tiles": tiles_info,
-        "links": default_links(cfg, source_info),
+        "areas": area_index,
+        "default_area": area_index[0]["key"],
     }
-    out_path = os.path.join(site_dir, "data.json")
-    tmp = out_path + ".tmp"
-    with open(tmp, "w") as f:
-        json.dump(out, f, indent=1)
-    os.replace(tmp, out_path)
-    # Same data as a script, so index.html works when opened straight from disk
-    # (browsers refuse fetch() over file://). "</" is escaped so no string can end the tag.
-    js_path = os.path.join(site_dir, "data.js")
-    with open(js_path + ".tmp", "w") as f:
-        f.write("window.FIBERMAP_DATA = " + json.dumps(out).replace("</", "<\\/") + ";\n")
-    os.replace(js_path + ".tmp", js_path)
-    log.info("wrote %s (%d permits, %d headlines, %d alerts)", out_path, len(permit_rows), len(news), len(alerts))
+    write_data(os.path.join(site_dir, "data"), "window.FIBERMAP_DATA = %s;", out)
+    log.info("wrote %s/data.json (%d areas, %d headlines)", site_dir, len(area_index), len(news))
     return out

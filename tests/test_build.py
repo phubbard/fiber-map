@@ -1,7 +1,7 @@
 import unittest
 from datetime import date
 
-from fibermap.build import compute_alerts, mark_section, summarize
+from fibermap.build import compute_alerts, mark_section, merged_news_queries, summarize
 from fibermap.permits.base import Permit
 
 
@@ -23,7 +23,7 @@ class SummarizeTests(unittest.TestCase):
         ]
         s = summarize(items, today)
         self.assertEqual(s["total"], 5)
-        self.assertEqual(s["active"], 4)
+        self.assertEqual(s["active"], 3)          # traffic-control permits are not "open right-of-way work"
         self.assertEqual(s["fiber_active"], 3)
         self.assertEqual(s["by_year"]["2026"]["AT&T"]["total"], 2)
         self.assertEqual(s["by_year"]["2026"]["AT&T"]["fiber"], 1)
@@ -71,3 +71,11 @@ class AlertTests(unittest.TestCase):
         self.assertIn("and it is in this area", by_co["Ezee Networks"]["text"])
         self.assertIn("outside this area", by_co["Wyyerd"]["text"])
         self.assertEqual(alerts[0]["date"], "2026-11-04T00:00:00Z")  # newest first
+
+
+class NewsQueryTests(unittest.TestCase):
+    def test_area_queries_are_merged_without_duplicates(self):
+        cfg = {"news": {"queries": [{"label": "A", "q": "a"}]}}
+        areas = [{"news": {"queries": [{"label": "A", "q": "a"}, {"label": "B", "q": "b"}]}},
+                 {"news": {"queries": [{"label": "B", "q": "b"}]}}]
+        self.assertEqual([q["label"] for q in merged_news_queries(cfg, areas)], ["A", "B"])

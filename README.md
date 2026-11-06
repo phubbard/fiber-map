@@ -25,7 +25,7 @@ months before the crews show up, and the FCC map only updates twice a year.
 ## Run it
 
 ```bash
-python3 -m fibermap build          # fetch permits, news, tiles; write site/data.json + data.js
+python3 -m fibermap build          # fetch permits, news, tiles; write site/data.js + site/areas/*.js
 python3 -m fibermap serve          # http://127.0.0.1:8765/
 python3 -m unittest discover -s tests -t .
 ```
@@ -47,6 +47,26 @@ ntfy.sh topic to hear about failures):
 
 Or serve `site/` directly with anything static (Caddy `file_server`,
 `python3 -m http.server`).
+
+## Several ZIPs on one page
+
+`config.json` takes a list of areas; the page gets a dropdown, each ZIP has its own
+URL (`…/#92126`) that friends can bookmark, and the dropdown shows how many new items
+each ZIP has:
+
+```json
+"areas": [
+  {"zip": "92122", "label": "University City (92122)", "radius_km": 2.5},
+  {"zip": "92126", "label": "Mira Mesa (92126)"},
+  {"zip": "92129", "label": "Rancho Peñasquitos (92129)", "zoom_offset": 0,
+   "news": {"queries": [{"label": "PQ", "q": "\"Rancho Penasquitos\" fiber"}]}}
+]
+```
+
+Per-area keys: `zip`, `label`, `center`, `radius_km`, `bbox`, `zoom_offset`, extra
+`news.queries` and `links`. Permits are fetched once for the whole city; the build
+writes `site/data.js` (the shared index, news and watchlist) plus `site/areas/<zip>.js`
+per area, loaded on demand. A config with a single top-level `zip` still works.
 
 ## Point it at another ZIP
 
@@ -80,7 +100,7 @@ permit id, a lat/long, a status and some free text naming the applicant.
 
 ```
 fibermap/            the package (python3 -m fibermap)
-  config.py          load config.json, resolve the ZIP to a box
+  config.py          load config.json, normalise the list of areas, resolve a ZIP to a box
   zcta.py            Census ZCTA gazetteer lookup
   geo.py             bbox and tile maths
   permits/           source adapters (sandiego.py) + classifier

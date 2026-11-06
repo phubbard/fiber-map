@@ -55,6 +55,11 @@ h1 { font-size: 22px; margin: 0; }
 h2 { font-size: 15px; margin: 0 0 10px; color: var(--text-secondary); font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; }
 .top { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: flex-end; justify-content: space-between; margin-bottom: 14px; }
 .sub { margin: 2px 0 0; color: var(--text-secondary); }
+.title-row { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; }
+#area-select {
+  font: inherit; font-size: 14px; padding: 5px 30px 5px 10px; border-radius: 8px; border: 1px solid var(--border);
+  background: var(--surface-1); color: var(--text-primary); max-width: 100%;
+}
 .links { display: flex; flex-wrap: wrap; gap: 6px; }
 .links a {
   display: inline-block; padding: 5px 10px; border: 1px solid var(--border); border-radius: 999px;

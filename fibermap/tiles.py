@@ -16,15 +16,14 @@ TILE_URL = "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
 ATTRIBUTION = "&copy; OpenStreetMap contributors"
 
 
-def ensure_tiles(cfg: dict, site_dir: str, max_fetch: int = 1500) -> dict:
-    tiles_cfg = cfg["tiles"]
+def ensure_tiles(tiles_cfg: dict, bbox: list[float], site_dir: str, max_fetch: int = 3000) -> dict:
     zooms = sorted(int(z) for z in tiles_cfg.get("zooms", []))
     info = {"mode": tiles_cfg.get("mode", "local"), "zooms": zooms, "attribution": ATTRIBUTION}
     if info["mode"] != "local":
         return info
     fetched = present = 0
     for z in zooms:
-        for (_, x, y) in tiles_for_bbox(cfg["bbox"], z, margin=1):
+        for (_, x, y) in tiles_for_bbox(bbox, z, margin=1):
             dest = os.path.join(site_dir, "tiles", str(z), str(x), f"{y}.png")
             if os.path.exists(dest):
                 present += 1
